@@ -465,3 +465,18 @@ class TestVersionConsistency:
         assert ci_sandbox.cli.__version__ == ci_sandbox.__version__
         assert ci_sandbox.cli.__version__ is ci_sandbox.__version__
 
+
+
+
+def test_eval_expression_quotes_with_commas_and_operators():
+    workflow = Workflow(name="Test", on=["push"], jobs={})
+    sim = CISimulator(workflow, event="push", ref="refs/heads/main")
+
+    # Arguments with commas inside quotes
+    assert sim._eval_expression("contains('foo, bar, baz', 'bar')") is True
+    assert sim._eval_expression("contains('foo, bar, baz', 'a, b')") is True
+    assert sim._eval_expression("startsWith('hello, world', 'hello,')") is True
+
+    # Logical operators inside quotes should not split incorrectly
+    assert sim._eval_expression("contains('a||b', '||')") is True
+    assert sim._eval_expression("contains('a&&b', '&&')") is True
