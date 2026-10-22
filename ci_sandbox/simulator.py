@@ -145,11 +145,13 @@ class CISimulator:
         if expr.startswith("${{") and expr.endswith("}}"):
             expr = expr[3:-2].strip()
 
-        if "||" in expr:
-            return any(self._eval_expression(part) for part in expr.split("||"))
+        or_parts = _split_top_level(expr, "||")
+        if or_parts is not None:
+            return any(self._eval_expression(part) for part in or_parts)
 
-        if "&&" in expr:
-            return all(self._eval_expression(part) for part in expr.split("&&"))
+        and_parts = _split_top_level(expr, "&&")
+        if and_parts is not None:
+            return all(self._eval_expression(part) for part in and_parts)
 
         if expr == "always()":
             return True
@@ -166,22 +168,22 @@ class CISimulator:
                 if job.status != "pending"
             )
 
-        m = re.match(r"contains\((.+),\s*(.+)\)", expr)
-        if m:
-            search = self._resolve_value(m.group(1).strip())
-            item = self._resolve_value(m.group(2).strip())
+        args = _parse_func_call(expr, "contains")
+        if args is not None:
+            search = self._resolve_value(args[0])
+            item = self._resolve_value(args[1])
             return item in str(search)
 
-        m = re.match(r"startsWith\((.+),\s*(.+)\)", expr)
-        if m:
-            search = self._resolve_value(m.group(1).strip())
-            item = self._resolve_value(m.group(2).strip())
+        args = _parse_func_call(expr, "startsWith")
+        if args is not None:
+            search = self._resolve_value(args[0])
+            item = self._resolve_value(args[1])
             return str(search).startswith(str(item))
 
-        m = re.match(r"endsWith\((.+),\s*(.+)\)", expr)
-        if m:
-            search = self._resolve_value(m.group(1).strip())
-            item = self._resolve_value(m.group(2).strip())
+        args = _parse_func_call(expr, "endsWith")
+        if args is not None:
+            search = self._resolve_value(args[0])
+            item = self._resolve_value(args[1])
             return str(search).endswith(str(item))
 
         if "==" in expr:
@@ -239,3 +241,62 @@ class CISimulator:
         if value.startswith("inputs.") and len(value) > 7:
             return self.inputs.get(value[7:], "")
         return value
+
+
+def _split_top_level(expr: str, op: str) -> list[str] | None:
+    """Split expr by operator op ('||' or '&&') only at the top level outside of quotes."""
+    parts = []
+    in_quote = None
+    depth = 0
+    start = 0
+    i = 0
+    n = len(expr)
+    op_len = len(op)
+    while i < n:
+        ch = expr[i]
+        if ch in ("'", '"'):
+            if in_quote is None:
+                in_quote = ch
+            elif in_quote == ch:
+                in_quote = None
+        elif in_quote is None:
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth = max(0, depth - 1)
+            elif depth == 0 and expr[i : i + op_len] == op:
+                parts.append(expr[start:i].strip())
+                i += op_len
+                start = i
+                continue
+        i += 1
+    if parts:
+        parts.append(expr[start:].strip())
+        return parts
+    return None
+
+
+def _parse_func_call(expr: str, func_name: str) -> tuple[str, str] | None:
+    """Parse a two-argument function call respecting quotes and parenthesis depth."""
+    prefix = f"{func_name}("
+    if not expr.startswith(prefix) or not expr.endswith(")"):
+        return None
+    inner = expr[len(prefix) : -1].strip()
+    in_quote = None
+    depth = 0
+    for i, ch in enumerate(inner):
+        if ch in ("'", '"'):
+            if in_quote is None:
+                in_quote = ch
+            elif in_quote == ch:
+                in_quote = None
+        elif in_quote is None:
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth = max(0, depth - 1)
+            elif depth == 0 and ch == ",":
+                arg1 = inner[:i].strip()
+                arg2 = inner[i + 1 :].strip()
+                return arg1, arg2
+    return None
