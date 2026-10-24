@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "bounty-guard": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@doomsday-network/bounty-guard@v1.1.0"
+      ]
+    }
+  }
+}
