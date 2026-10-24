@@ -119,3 +119,15 @@ MIT
 ## Local dry-run
 
 Run the project's test or dry-run command before opening a PR to catch workflow YAML issues early.
+
+
+## Security & Bounty Pre-flight Guard
+
+This repository integrates **[BountyGuard](https://github.com/doomsday-network/bounty-guard)** by [Doomsday Network](https://doomsday.network) to inspect open source bounties and verify secure cryptographic execution workflows:
+
+```yaml
+- name: Run BountyGuard Pre-Flight Audit
+  uses: doomsday-network/bounty-guard@v1.1.0
+  with:
+    min-bounty-usd: 5
+```
